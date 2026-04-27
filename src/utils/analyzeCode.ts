@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-unused-vars */
 import type { AnalyzerResult, LanguageStyle } from "../types";
 import { languageRules } from "../data/languageRules";
 
@@ -8,15 +9,12 @@ export function analyzeCode(code: string, lang: LanguageStyle): AnalyzerResult {
 
   const lexErrors: string[] = [];
   const synErrors: string[] = [];
-  // 🔴 LANGUAGE IDENTITY CHECK (CRITICAL FIX)
+
+  // 🔴 LANGUAGE IDENTITY CHECK (soft detection only)
   const fingerprint = rules.languageFingerprint;
 
   if (fingerprint) {
     const codeText = code;
-
-    const missingRequired = fingerprint.requiredPatterns?.some(
-      (regex) => !regex.test(codeText),
-    );
 
     const hasForbidden = fingerprint.forbiddenPatterns?.some((regex) =>
       regex.test(codeText),
@@ -26,15 +24,22 @@ export function analyzeCode(code: string, lang: LanguageStyle): AnalyzerResult {
       lexErrors.push(`Line 1: code contains invalid ${lang} syntax`);
     }
 
-    if (missingRequired) {
-      lexErrors.push(`Line 1: missing required ${lang} structure`);
-    }
+    const matches =
+      fingerprint.requiredPatterns?.filter((r) => r.test(codeText)).length ?? 0;
+
+    const confidence = fingerprint.requiredPatterns?.length
+      ? matches / fingerprint.requiredPatterns.length
+      : 1;
+
+    // NOTE: confidence is currently unused (intentional)
   }
+
   lines.forEach((line, i) => {
     const lineNo = i + 1;
     const trimmed = line.trim();
 
     if (!trimmed) return;
+
     // 🔴 C++ include validation
     if (lang === "CPP" && rules.includeValidator) {
       if (trimmed.startsWith("#include")) {
@@ -45,7 +50,8 @@ export function analyzeCode(code: string, lang: LanguageStyle): AnalyzerResult {
         }
       }
     }
-    // 🔴 lexical validation (shared logic)
+
+    // 🔴 shared lexical validation
     rules.invalidTokens.forEach((regex) => {
       if (regex.test(trimmed)) {
         lexErrors.push(`Line ${lineNo}: invalid token for ${lang}`);
@@ -54,7 +60,7 @@ export function analyzeCode(code: string, lang: LanguageStyle): AnalyzerResult {
 
     const hasSemicolon = trimmed.endsWith(";");
 
-    // 🔵 C++ semicolon logic (NOW SAFE + ISOLATED)
+    // 🔵 C++ semicolon logic
     if (lang === "CPP") {
       const needs = rules.needsSemicolon?.(trimmed) ?? false;
 
@@ -67,6 +73,22 @@ export function analyzeCode(code: string, lang: LanguageStyle): AnalyzerResult {
     if (lang === "PYTHON") {
       if (hasSemicolon) {
         synErrors.push(`Line ${lineNo}: semicolons not allowed in Python`);
+      }
+    }
+
+    // 🔵 JavaScript-specific rule (FIXED: now active)
+    if (lang === "JS") {
+      if (
+        trimmed.startsWith("return") ||
+        trimmed.startsWith("throw") ||
+        trimmed.startsWith("break") ||
+        trimmed.startsWith("continue")
+      ) {
+        if (!hasSemicolon) {
+          synErrors.push(
+            `Line ${lineNo}: missing semicolon in control statement`,
+          );
+        }
       }
     }
   });
@@ -89,6 +111,8 @@ export function analyzeCode(code: string, lang: LanguageStyle): AnalyzerResult {
       synErrors.push("Mismatched braces");
     }
   }
+
+  // 🔵 parentheses validation (JS / CPP)
   if (lang === "JS" || lang === "CPP") {
     let paren = 0;
 
@@ -106,30 +130,10 @@ export function analyzeCode(code: string, lang: LanguageStyle): AnalyzerResult {
       synErrors.push("Mismatched parentheses '()'");
     }
   }
+
   return {
-    tokens: [], // UI unchanged (still sampleTokens in App.tsx)
+    tokens: [],
     lexErrors,
     synErrors,
   };
-  lines.forEach((line, i) => {
-    const lineNo = i + 1;
-    const trimmed = line.trim();
-
-    if (!trimmed) return;
-
-    if (lang === "JS") {
-      if (
-        trimmed.startsWith("return") ||
-        trimmed.startsWith("throw") ||
-        trimmed.startsWith("break") ||
-        trimmed.startsWith("continue")
-      ) {
-        if (!trimmed.endsWith(";")) {
-          synErrors.push(
-            `Line ${lineNo}: missing semicolon in control statement`,
-          );
-        }
-      }
-    }
-  });
 }

@@ -55,18 +55,25 @@ export const languageRules: Record<LanguageStyle, Rules> = {
   },
 
   PYTHON: {
-    allowSemicolon: true, // ⚠️ optional only
+    allowSemicolon: true,
     requireSemicolon: false,
     printKeyword: "print",
     invalidTokens: [/cout/, /console\.log/],
+
     languageFingerprint: {
-      requiredPatterns: [/def\s+\w+\s*\(/],
+      requiredPatterns: [
+        /\bdef\b/, // function usage (strong signal)
+        /\bimport\b/, // module usage
+        /\bprint\s*\(/, // script-style signal
+        /^[a-zA-Z_]\w*\s*=/, // variable assignment signal
+      ],
       forbiddenPatterns: [/#include/, /console\.log/, /\bfunction\b/],
     },
   },
 
   JS: {
     allowSemicolon: true,
+
     semicolonRules: {
       requiresSemicolon: (line: string) => {
         const t = line.trim();
@@ -78,18 +85,22 @@ export const languageRules: Record<LanguageStyle, Rules> = {
         );
       },
     },
+
     printKeyword: "console.log",
     invalidTokens: [/cout/],
 
     languageFingerprint: {
-      requiredPatterns: [/\bfunction\b|\bconst\b|\blet\b|\bvar\b/],
-      forbiddenPatterns: [/def\s+\w+\s*\(/, /#include/, /:\s*$/],
+      requiredPatterns: [
+        /\bfunction\b/, // function style
+        /\bconst\b|\blet\b|\bvar\b/, // variable declarations
+        /console\.log/, // runtime usage signal
+      ],
+      forbiddenPatterns: [/#include/, /def\s+\w+\s*\(/],
     },
 
     needsSemicolon: (line: string) => {
       const t = line.trim();
 
-      // dangerous ASI edge cases
       if (
         t.startsWith("return") ||
         t.startsWith("throw") ||

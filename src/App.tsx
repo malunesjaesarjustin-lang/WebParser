@@ -132,7 +132,7 @@ const App: React.FC = () => {
           <div className="tabs-container">
             <div className="tab">
               {lang.toLowerCase()}_fragment.
-              {lang === "PYTHON" ? "py" : lang === "JS" ? "js" : "cpp"}
+              {lang === "PYTHON" ? "py" : lang === "JS" ? "JS" : "cpp"}
             </div>
 
             <div className="editor-actions">
